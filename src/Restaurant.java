@@ -1,7 +1,7 @@
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.LinkedList;
+import java.util.*;
+import java.util.function.Predicate;
+import java.util.stream.Collector;
+import java.util.stream.Collectors;
 
 public class Restaurant {
 
@@ -10,28 +10,46 @@ public class Restaurant {
     private HashMap<Integer, Order> orders;
     private LinkedHashMap<Integer, Order> completedOrders;
 
+    private List<OrderStatusListener> statusListeners;
+
+
+
     public Restaurant() {
         menu = new ArrayList<>();
         kitchenQueue = new LinkedList<>();
         orders = new HashMap<>();
         completedOrders = new LinkedHashMap<>();
+        statusListeners = new ArrayList<>();
     }
 
 
-
-    public MenuItem findMenuItem(int id) {
-        for (MenuItem item : menu) {
-            if (item.getId() == id) {
-                return item;
-            }
-        }
-        return null;
+    public void registerStatusListener(OrderStatusListener listener) {
+        statusListeners.add(listener);
     }
+
+    private void changeStatus(Order order, OrderStatus newStatus) {
+        OrderStatus oldStatus = order.updateStatus(newStatus);
+        statusListeners.forEach(listener -> listener.onStatusChange(order,oldStatus,newStatus));
+    }
+
+//    public MenuItem findMenuItem(int id) {
+//        for (MenuItem item : menu) {
+//            if (item.getId() == id) {
+//                return item;
+//            }
+//        }
+//        return null;
+//    }
 
     // 1- Add Menu Item
     public boolean addMenuItem(int id, String name, double price, String category) {
-        if (findMenuItem(id) != null) {
-            System.out.println("A menu item already exists!");
+//        if (findMenuItem(id) != null) {
+//            System.out.println("A menu item already exists!");
+//            return false;
+//        }
+        boolean alreadyExists = menu.stream().anyMatch(item -> item.getId() == id);
+        if (alreadyExists) {
+            System.out.println("the menu item already exists");
             return false;
         }
         menu.add(new MenuItem(id, name, price, category));
@@ -41,36 +59,58 @@ public class Restaurant {
 
     // 2- Remove Menu Item
     public boolean removeMenuItem(int id) {
-        MenuItem itemToRemove = findMenuItem(id);
-        if (itemToRemove == null) {
-            System.out.println("No menu item found!");
-            return false;
+//        MenuItem itemToRemove = findMenuItem(id);
+//        if (itemToRemove == null) {
+//            System.out.println("No menu item found!");
+//            return false;
+//        }
+        boolean itemToRemove = menu.removeIf(item -> item.getId() == id);
+        if (itemToRemove) {
+            System.out.println("Menu item removed!");
+        }else {
+            System.out.println("Menu item not found!");
         }
-        menu.remove(itemToRemove);
-        System.out.println("Menu item removed!");
-        return true;
+        return itemToRemove;
     }
 
     // 3- Display Menu
     public void displayMenu() {
-        if (menu.isEmpty()) {
-            System.out.println("No menu items found!");
-            return;
-        }
+//        if (menu.isEmpty()) {
+//            System.out.println("No menu items found!");
+//            return;
+//        }
+//        System.out.println("Menu items: ");
+//        for (MenuItem item : menu) {
+//            System.out.println(item);
+//        }
+        List<MenuItem> sortedMenu = menu.stream()
+                .sorted(Comparator.comparingInt(MenuItem::getId))
+                .collect(Collectors.toCollection(ArrayList::new));
         System.out.println("Menu items: ");
-        for (MenuItem item : menu) {
-            System.out.println(item);
-        }
+        sortedMenu.forEach(System.out::println);
+    }
+
+    public Optional<MenuItem> searchMenu (Predicate<MenuItem> predicate) {
+        return menu.stream().filter(predicate).findFirst();
+    }
+    public Optional<MenuItem> findMenuItem(int id) {
+        return searchMenu(item -> item.getId() == id);
     }
 
     // 4- Search Menu Item
     public void searchMenuItem(int id) {
-        MenuItem itemToSearch = findMenuItem(id);
-        if (itemToSearch == null) {
-            System.out.println("No menu item found!");
-        }else  {
-            System.out.println("Menu item found!");
+//        MenuItem itemToSearch = findMenuItem(id);
+        Optional<MenuItem> result = findMenuItem(id);
+        if (result.isPresent()) {
+            System.out.println("Menu item found! "+ result.get());
+        }else {
+            System.out.println("Menu item not found!");
         }
+//        if (itemToSearch == null) {
+//            System.out.println("No menu item found!");
+//        }else  {
+//            System.out.println("Menu item found!");
+//        }
     }
 
 
@@ -94,8 +134,9 @@ public class Restaurant {
             System.out.println("Order with ID " + orderId + " not found.");
             return false;
         }
-        MenuItem menuItem = findMenuItem(menuItemId);
-        if (menuItem == null) {
+//        MenuItem menuItem = findMenuItem(menuItemId);
+        Optional<MenuItem> menuItemOptional = findMenuItem(menuItemId);
+        if (!menuItemOptional.isPresent()) {
             System.out.println("Menu item with ID " + menuItemId + " does not exist.");
             return false;
         }
@@ -103,9 +144,9 @@ public class Restaurant {
             System.out.println("Quantity must be positive.");
             return false;
         }
-        boolean added = order.addItem(menuItem, quantity);
+        boolean added = order.addItem(menuItemOptional.get(), quantity);
         if (added) {
-            System.out.println("Added " + quantity + " x " + menuItem.getName() + " to order " + orderId );
+            System.out.println("Added " + quantity + " x " + menuItemOptional.get().getName() + " to order " + orderId );
         }
         return added;
     }
@@ -143,11 +184,17 @@ public class Restaurant {
             System.out.println("order " + orderId + " cannot be queued because it is " + order.getStatus() );
             return false;
         }
-        if (kitchenQueue.contains(order)) {
-            System.out.println("order " + orderId + " is already in the kitchen queue");
+//        if (kitchenQueue.contains(order)) {
+//            System.out.println("order " + orderId + " is already in the kitchen queue");
+//            return false;
+//        }
+        boolean aleadyQueued = kitchenQueue.stream().anyMatch( i -> i.getOrderId() == orderId);
+        if (aleadyQueued) {
+            System.out.println("order with id " + orderId + " is already queued" );
             return false;
         }
-        order.updateStatus(OrderStatus.IN_KITCHEN);
+//        order.updateStatus(OrderStatus.IN_KITCHEN);
+        changeStatus(order, OrderStatus.IN_KITCHEN);
         kitchenQueue.addLast(order);
         System.out.println("order " + orderId + " added to the kitchen queue (IN KITCHEN)");
         return true;
@@ -161,7 +208,8 @@ public class Restaurant {
         }
 
         Order order = kitchenQueue.removeFirst();
-        order.updateStatus(OrderStatus.COMPLETED);
+//        order.updateStatus(OrderStatus.COMPLETED);
+        changeStatus(order, OrderStatus.COMPLETED);
         completedOrders.put(order.getOrderId(), order);
         System.out.println("order " + order.getOrderId() + " processed and marked COMPLETED.");
         return true;
@@ -169,34 +217,50 @@ public class Restaurant {
 
     // 11- Search Order
     public Order searchOrder(int orderId) {
-        Order order = orders.get(orderId);
-        if (order == null) {
+//        Order order = orders.get(orderId);
+//        if (order == null) {
+//            System.out.println("order with id " + orderId + " not found.");
+//        } else {
+//            System.out.println("found: " + order);
+//        }
+//        return order;
+        Optional <Order> result = Optional.ofNullable(orders.get(orderId));
+        if (result.isPresent()) {
+            System.out.println("found: " + result.get());
+        }else {
             System.out.println("order with id " + orderId + " not found.");
-        } else {
-            System.out.println("found: " + order);
         }
-        return order;
+        return result.orElse(null);
     }
 
     // 12- Check Order Status
     public void checkOrderStatus(int orderId) {
-        Order order = orders.get(orderId);
-        if (order == null) {
+//        Order order = orders.get(orderId);
+//        if (order == null) {
+//            System.out.println("order with id " + orderId + " not found");
+//            return;
+//        }
+//        System.out.println("order " + orderId + " status: " + order.getStatus());
+        Optional<Order> result = Optional.ofNullable(orders.get(orderId));
+        if (result.isPresent()) {
+            System.out.println("order " + orderId + " status: " + result.get().getStatus());
+        } else {
             System.out.println("order with id " + orderId + " not found");
-            return;
         }
-        System.out.println("order " + orderId + " status: " + order.getStatus());
     }
 
     // 13- Display Completed Orders
     public void displayCompletedOrders() {
-        if (completedOrders.isEmpty()) {
-            System.out.println("no orders have been completed yet");
-            return;
-        }
-        System.out.println("===== COMPLETED ORDERS =====");
-        for (Order order : completedOrders.values()) {
-            System.out.println(order);
-        }
+//        if (completedOrders.isEmpty()) {
+//            System.out.println("no orders have been completed yet");
+//            return;
+//        }
+//        System.out.println("===== COMPLETED ORDERS =====");
+//        for (Order order : completedOrders.values()) {
+//            System.out.println(order);
+//        }
+        List<Order> completedList = completedOrders.values().stream()
+                .collect(Collectors.toCollection(ArrayList::new));
+        ReportGenerator.generateReport("Completed Orders", completedList);
     }
 }

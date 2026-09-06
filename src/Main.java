@@ -40,6 +40,11 @@ public class Main {
         scanner.close();
     }
 
+    private static void registerStatusListener() {
+        restaurant.registerStatusListener((order, oldStatus, newStatus) ->
+                System.out.println("order " + order.getOrderId() + ":" + oldStatus +" -> " + newStatus));
+    }
+
     private static void printMenu() {
         System.out.println("========= RESTAURANT ORDER MANAGER =========");
         System.out.println(" 1. Add Menu Item");
